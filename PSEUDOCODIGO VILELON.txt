@@ -1,0 +1,122 @@
+phi = concentración C0 al tiempo t
+phip = concentración C0 al tiempo t+dt
+vadv = vel. de adveccción
+phi1 = concentración C*_q al tiempo t
+phi1p = concentración C*_q al tiempo t+dt
+
+similarmente con la temperatura:
+th = Temp. T0 al tiempo t
+thp = Temp. T0 al tiempo t+dt
+th1 = Temp. T*_q al tiempo t
+th1p = Temp. T*_q al tiempo t+dt
+ww = w*_q
+wwp = w*_q al tiempo t + dt
+psi=psi*_q
+nx=2000 tamaño de la malla
+nxm2=nx-2 para usar el la subrutina de la matriz tridiagonal
+
+Las constantes:
+        sc=400.
+        xle=20.
+        ra=2.0
+        v0=1./sqrt(2.)
+        vadv=v0-0.0023
+
+valores iniciales: Leer phi y th (C0 y T0) archivo externo.
+ponemos ceros 
+        phip=0.d0
+        thp=0.d0
+        phi1=0.d0
+        th1=0.d0
+        psi=0.d0
+        ww=0.d0
+           
+luego agregamos ruido: asegura que el ruido está en la posición del frente, en mi caso ocurre en i=1000
+           nxm=1000
+           do i=nxm-40,nxm+40
+              phi1(i)=0.001*rand()
+              th1(i)=0.001*rand()
+           enddo
+ 
+Procedemos a iterar 2 M de veces:
+
+        itmax=2000000        
+        do it=1,itmax
+        do i=2,nx-1
+        phip(i)=phi(i)+dt*(phi(i+1)+phi(i-1)-2.*phi(i))/dx**2+phi(i)**2*(1-phi(i))*dt
+        phip(i)=phip(i)+dt*vadv*(phi(i+1)-phi(i-1))/(2.*dx)
+        dfpp=(phi(i))*(2.-3.*phi(i))
+        phi1p(i)=phi1(i)+dt*(phi1(i+1)+phi1(i-1)-2.*phi1(i))/dx**2+phi1(i)*dfpp*dt
+        phi1p(i)=phi1p(i)+dt*vadv*(phi1(i+1)-phi1(i-1))/(2.*dx)-q**2*phi1(i)*dt
+         phi1p(i)=phi1p(i)-dt*q*psi(i)*(phi(i+1)-phi(i-1))/(2.*dx)
+        thp(i)=th(i)+dt*xle*(th(i+1)+th(i-1)-2.*th(i))/dx**2+phi(i)**2*(1-phi(i))*dt
+        thp(i)=thp(i)+dt*vadv*(th(i+1)-th(i-1))/(2.*dx)
+        th1p(i)=th1(i)+dt*xle*(th1(i+1)+th1(i-1)-2.*th1(i))/dx**2
+        th1p(i)=th1p(i)+dt*vadv*(th1(i+1)-th1(i-1))/(2.*dx)+phi1(i)*dfpp*dt-xle*q**2*th1(i)*dt
+         th1p(i)=th1p(i)-dt*q*psi(i)*(th(i+1)-th(i-1))/(2.*dx)
+        enddo
+
+Paso de la data para volver a iterar teniendo en cuenta las condiciones de frontera
+        phi=phip
+        th=thp
+        phi1=phi1p
+        th1=th1p
+        phi(1)=1.
+        phi(nx)=0.
+        th(1)=th(2)
+        th(nx)=0.
+        phi1(1)=0.
+        phi1(nx)=0.
+        th1(1)=th1(2)
+        th1(nx)=0.
+
+Ahora llamamos a la subrutina matriz tridiagonal del numerical recipes (ver notación)
+
+        u=0.0d0
+        rr=0.0d0
+        do i=2,nx-1
+         rr(i-1)=-q*ra*th1(i)-ww(i)/(sc*dt)
+         a(i-1)=vadv/(sc*2.*dx)+(1.)/dx**2
+         b(i-1)=-2./dx**2-q**2-1/(sc*dt)
+         c(i-1)=(1.)/dx**2-vadv/(sc*2.*dx)
+        enddo
+        a(1)=0.0d0
+        c(nxm2)=0.0d0
+        n2=nxm2  
+        call tridag(a,b,c,rr,u,n2)        ! llamado a la subrutina de numerical recipes
+
+        do i=2,nx-1
+           wwp(i)=u(i-1)    ! guardamos la solución
+        enddo
+        wwp(1)=0.0d0
+        wwp(nx)=0.0d0
+        ww=wwp      ! paso de la data para volver a iterar 
+
+Nuevamente llamamos la subrutina de la matriz tridiagonal pero ahora para resolver la ecuación 14 del paper.
+
+        u=0.0d0
+        rr=0.0d0
+        do i=2,nx-1
+           rr(i-1)=ww(i)
+           a(i-1)=1/dx**2
+           b(i-1)=-2./dx**2-q**2
+           c(i-1)=1/dx**2
+        enddo
+        a(1)=0.0d0
+        c(nxm2)=0.0d0      ! definimos:  nx=2000 tamaño de malla, nxm2=nx-2
+        n2=nxm2
+        call tridag(a,b,c,rr,u,n2)
+
+        do i=2,nx-1
+           psi(i)=u(i-1)
+        enddo
+        psi(1)=0.0d0
+        psi(nx)=0.0d0
+       
+ahora, cada 200 000 iteraciones guarda la data en un archivo diferente cada vez.
+
+            do i=1,nx
+               write(iout,*) i,phi(i),th(i),psi(i),phi1(i),th1(i)
+            enddo
+
+       enddo  ! cierra el bucle de las iteraciones.
