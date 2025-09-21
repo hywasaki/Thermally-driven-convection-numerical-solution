@@ -8,7 +8,7 @@ program main_explicit11_12
   !---------------- parametros ------------------------------------------
   integer,parameter :: nx=2000, nt=5000000, nt_stabilizer=5000000, nq = 150
   real(dp),parameter :: dx=0.5_dp, dt=4.0e-4_dp
-  real(dp),parameter :: Le=20._dp, Sc=400._dp, Ra=12.5_dp, q_max=0.3_dp
+  real(dp),parameter :: Le=20._dp, Sc=400._dp, Ra= 0.3_dp, q_max=0.3_dp
   real(dp),parameter :: v0=1._dp/sqrt(2._dp)-0.0023_dp
   integer, parameter :: noise_ini = 960, noise_end=1040
   real(dp) :: step_size_q
@@ -44,6 +44,20 @@ program main_explicit11_12
   logical :: nan_here 
   logical, parameter :: normalized_sc = .true.  ! <- FLAG: true usa normalización Sc*dt
 
+  ! --- Sufijo con Le, Ra (±xx.x) y Sc; sustituye "." -> "p"
+character(len=32) :: suffix, raw
+
+! 1) Formato:  SP = “Sign Plus”  |  F0.1 = un decimal (ajusta a F0.2, F0.3, … si lo necesitas)
+write(raw,'("Le",I0,"Ra",SP,F0.1,"Sc",I0)') int(Le), Ra, int(Sc)
+suffix = adjustl(trim(raw))     ! recorta espacios a la izquierda/derecha
+
+! 2) Sustituir el punto decimal por 'p'
+do i = 1, len_trim(suffix)
+   if (suffix(i:i) == '.') suffix(i:i) = 'p'
+end do
+
+
+
   !! Check what is declared as parameters
   write(*, *) "Reaction difussion" 
   write(*,*) "model thermally driven convection"
@@ -57,13 +71,14 @@ program main_explicit11_12
   !======================================================================
   ! Saving Files
   !======================================================================
-  open(10, file = 'C0_save.txt', status = 'replace')
-  open(11, file = 'T0_save.txt', status = 'replace')
-  open(12, file = 'Cq_save.txt', status = 'replace')
-  open(13, file = 'Tq_save.txt', status = 'replace')
-  open(14, file = 'Wq_save.txt', status = 'replace')
-  open(15, file = 'Psiq_save.txt', status = 'replace')
-  open(16, file = 'growth_rate.txt', status = 'replace')
+  open(10, file = 'C0_'//suffix//'.txt',   status = 'replace')
+  open(11, file = 'T0_'//suffix//'.txt',   status = 'replace')
+  open(12, file = 'Cq_'//suffix//'.txt',   status = 'replace')
+  open(13, file = 'Tq_'//suffix//'.txt',   status = 'replace')
+  open(14, file = 'Wq_'//suffix//'.txt',   status = 'replace')
+  open(15, file = 'Psiq_'//suffix//'.txt', status = 'replace')
+  open(16, file = 'growth_rate_'//suffix//'.txt', status = 'replace')
+
   
   !======================================================================
   ! Time loop for C0 and T0 (in order to have stable flat front)
@@ -381,7 +396,7 @@ program main_explicit11_12
         if(mod(i,prog_step)==0)then
             call cpu_time(tcur)
             pct=100._dp*real(i,dp)/real(nt,dp)
-            write(*,'("q=",F7.5,"  j=",I2,"  i=",I7,"  Progres: ",F6.2," %   Total Time: ",F8.1," s")') q(j), j, i, pct, tcur - t0
+            write(*,'("q=",F7.5,"  j=",I3,"  i=",I7,"  Progres: ",F6.2," %   Total Time: ",F8.1," s")') q(j), j, i, pct, tcur - t0
         end if
         !======================================================================
         ! Saving Values at nt
